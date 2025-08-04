@@ -1,0 +1,6 @@
+[workspace]
+members = [
+    "shell",
+    "command_core",
+    "command_macro",
+]
