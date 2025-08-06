@@ -47,8 +47,8 @@ pub fn cmd_exit(_: &[&str]) -> Result<(), CommandError> {
 
 #[command(name = "help", description = "Displays help information", max = 1)]
 pub fn cmd_help(args: &[&str]) -> Result<(), CommandError> {
-    match args.len() {
-        0 => {
+    match args {
+        [] => {
             println!();
             for info_fn in COMMANDS {
                 let info = info_fn();
@@ -62,9 +62,7 @@ pub fn cmd_help(args: &[&str]) -> Result<(), CommandError> {
 
             Ok(())
         }
-        1 => {
-            let cmd = args[0];
-
+        [cmd] => {
             match CommandRegistry::find(cmd) {
                 Some(info) => {
                     println!("name: {}", info.name);

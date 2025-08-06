@@ -28,19 +28,17 @@ macro_rules! println_current_user {
 #[macro_export]
 macro_rules! print_current_dir {
     () => {
-        match std::env::current_dir() {
-            Ok(path) => print!("{} is in {}", get_current_user().purple(), path.to_str().unwrap_or_default().green()),
-            Err(e) => eprint!("Error retrieving current directory: {}", e),
-        }
+        std::env::current_dir()
+            .map(|path| print!("{} is in {}", get_current_user().purple(), path.to_str().unwrap_or_default().green()))
+            .unwrap_or_else(|e| error!("retrieving current directory: {}", e));
     };
 }
 #[macro_export]
 macro_rules! println_current_dir {
     () => {
-        match std::env::current_dir() {
-            Ok(path) => println!("{} is in {}", get_current_user().purple(), path.to_str().unwrap_or_default().green()),
-            Err(e) => eprintln!("Error retrieving current directory: {}", e),
-        }
+        std::env::current_dir()
+            .map(|path| println!("{} is in {}", get_current_user().purple(), path.to_str().unwrap_or_default().green()))
+            .unwrap_or_else(|e| error!("retrieving current directory: {}", e));
     };
 }
 

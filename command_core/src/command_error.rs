@@ -8,6 +8,7 @@ pub enum CommandError {
     TooManyArguments(usize, &'static CommandInfo),
     CommandNotFound(String),
     CommandFailed(String),
+    InvalidArguments(String),
     CannotAccessCurrentDirectory(IoError),
     DirectoryReadError(PathBuf, IoError),
     FileReadError(PathBuf, IoError),
@@ -28,6 +29,9 @@ impl std::fmt::Display for CommandError {
             CommandError::CommandFailed(e) => {
                 write!(f, "{}", e)
             },
+            CommandError::InvalidArguments(e) => {
+                write!(f, "{}", e)
+            }
             CommandError::CannotAccessCurrentDirectory(e) => {
                 write!(f, "Could not access the current directory: {}", e)
             },
