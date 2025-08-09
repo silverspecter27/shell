@@ -1,4 +1,4 @@
-use std::{io::Error as IoError, path::PathBuf};
+use std::{error::Error, io::Error as IoError, path::PathBuf};
 
 use crate::command_info::CommandInfo;
 
@@ -42,6 +42,12 @@ impl std::fmt::Display for CommandError {
                 write!(f, "Could not read file '{}': {}", path.display(), e)
             },
         }
+    }
+}
+
+impl From<&dyn Error> for CommandError {
+    fn from(err: &dyn Error) -> Self {
+        CommandError::CommandFailed(err.to_string())
     }
 }
 

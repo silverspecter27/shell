@@ -1,5 +1,5 @@
 use chrono::Local;
-use command_core::{CommandInfo, COMMANDS, CommandRegistry};
+use command_core::{CommandError, CommandInfo, CommandRegistry, COMMANDS};
 
 use colored::*;
 
@@ -16,13 +16,13 @@ pub fn get_current_user() -> String {
 #[macro_export]
 macro_rules! print_current_user {
     () => {
-        print!("{}", get_current_user().purple());
+        print!("{}", get_current_user().purple())
     };
 }
 #[macro_export]
 macro_rules! println_current_user {
     () => {
-        println!("{}", get_current_user().purple());
+        println!("{}", get_current_user().purple())
     };
 }
 #[macro_export]
@@ -30,7 +30,7 @@ macro_rules! print_current_dir {
     () => {
         std::env::current_dir()
             .map(|path| print!("{} is in {}", get_current_user().purple(), path.to_str().unwrap_or_default().green()))
-            .unwrap_or_else(|e| error!("retrieving current directory: {}", e));
+            .unwrap_or_else(|e| error!("retrieving current directory: {}", e))
     };
 }
 #[macro_export]
@@ -38,12 +38,40 @@ macro_rules! println_current_dir {
     () => {
         std::env::current_dir()
             .map(|path| println!("{} is in {}", get_current_user().purple(), path.to_str().unwrap_or_default().green()))
-            .unwrap_or_else(|e| error!("retrieving current directory: {}", e));
+            .unwrap_or_else(|e| error!("retrieving current directory: {}", e))
     };
+}
+
+pub fn call_executable(name: &str, args: &[&str]) -> Result<(), CommandError> {
+    use std::io::ErrorKind;
+
+    std::process::Command::new(name)
+        .args(args)
+        .spawn()
+        .map_err(|e| match e.kind() {
+            ErrorKind::NotFound => CommandError::CommandNotFound(format!("{}", name)),
+            ErrorKind::PermissionDenied => CommandError::CommandFailed(format!("Permission denied for '{}'", name)),
+            _ => CommandError::CommandFailed(format!("{}", e)),
+        })?
+        .wait()
+        .map_err(CommandError::from)
+        .and_then(|status| {
+            if status.success() {
+                Ok(())
+            } else {
+                Err(CommandError::CommandFailed(format!(
+                    "Program '{}' exited with code: '{}'",
+                    name,
+                    status.code().unwrap_or(-1)
+                )))
+            }
+        })
 }
 
 fn main() {
     use std::io::{self, Write};
+
+    _ = enable_ansi_support::enable_ansi_support();
 
     Builder::new()
         .filter(None, LevelFilter::Debug)
@@ -84,9 +112,13 @@ fn main() {
         if let Some(cmd) = parts.next() {
             let args: Vec<&str> = parts.collect();
 
-            if let Err(e) = CommandRegistry::execute_command(cmd, &args) {
-                error!("{}", e);
-            }
+            CommandRegistry::execute_command(cmd, &args)
+                .or_else(|e| match e {
+                    CommandError::CommandNotFound(_) => call_executable(cmd, &args),
+                    other => Err(other),
+                })
+                .map_err(|e| error!("{}", e))
+                .ok();
         }
     }
 }

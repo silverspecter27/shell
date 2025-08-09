@@ -40,7 +40,7 @@ pub fn cmd_time(_: &[&str]) -> Result<(), CommandError> {
     Ok(())
 }
 
-#[command(name = "exit", description = "Exit the shell", aliases("quit", "bye", max = 0))]
+#[command(name = "exit", description = "Exit the shell", aliases("quit", "bye"), max = 0)]
 pub fn cmd_exit(_: &[&str]) -> Result<(), CommandError> {
     std::process::exit(0);
 }
@@ -78,5 +78,15 @@ pub fn cmd_help(args: &[&str]) -> Result<(), CommandError> {
             }
         }
         _ => unreachable!()
+    }
+}
+
+#[command(name = "sys", description = "Run a given program", min = 1)]
+pub fn cmd_sys(args: &[&str]) -> Result<(), CommandError> {
+    match args {
+        [] => unreachable!(),
+        [program, rest@..] => {
+            crate::call_executable(program, rest)
+        }
     }
 }
