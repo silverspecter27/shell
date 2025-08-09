@@ -59,11 +59,16 @@ pub fn call_executable(name: &str, args: &[&str]) -> Result<(), CommandError> {
             if status.success() {
                 Ok(())
             } else {
-                Err(CommandError::CommandFailed(format!(
-                    "Program '{}' exited with code: '{}'",
-                    name,
-                    status.code().unwrap_or(-1)
-                )))
+                match status.code() {
+                    Some(code) => Err(CommandError::CommandFailed(format!(
+                        "Program '{}' exited with code: {}",
+                        name, code
+                    ))),
+                    None => Err(CommandError::CommandFailed(format!(
+                        "Program '{}' terminated by signal",
+                        name
+                    ))),
+                }
             }
         })
 }
