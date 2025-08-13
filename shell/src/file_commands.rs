@@ -9,6 +9,22 @@ use crate::{get_current_user, println_current_dir};
 use colored::*;
 use humansize::{format_size, DECIMAL};
 
+macro_rules! parent_flag_patterns {
+    () => {
+        "-p" | "--parents"
+    };
+}
+macro_rules! verbose_flag_patterns {
+    () => {
+        "-v" | "--verbose"
+    };
+}
+
+fn is_directory_empty(path: &Path) -> io::Result<bool> {
+    let mut entries = fs::read_dir(path)?;
+    Ok(entries.next().is_none())
+}
+
 #[command(name = "cd", description = "Print the current directory, or change it")]
 pub fn cmd_cd(path: Option<PathBuf>) -> Result<(), CommandError> {
     if let Some(path) = path {
@@ -75,34 +91,119 @@ pub fn cmd_touch(files: Vec<String>) -> Result<(), CommandError> {
 }
 
 #[command(name = "mkdir", description = "Makes a new directory")]
-pub fn cmd_mkdir(files: Vec<&Path>) -> Result<(), CommandError> {
-    for file in &files {
-        fs::create_dir(file)
-            .map_err(|e| CommandError::CommandFailed(format!("Failed to make directory '{}': {e}", file.display())))?
+pub fn cmd_mkdir(args: Vec<&str>) -> Result<(), CommandError> {
+   let mut parents = false; 
+   let mut verbose = false;
+
+   let mut dirs = Vec::new();
+
+    for cmd in args {
+        match cmd {
+            parent_flag_patterns!() => {
+                parents = true;
+            }
+            verbose_flag_patterns!() => {
+                verbose = true;
+            }
+            file => {
+                dirs.push(Path::new(file));
+            }
+        }
+    }
+    
+    for dir in &dirs {
+        if parents {
+            fs::create_dir_all(dir)
+        } else {
+            fs::create_dir(dir)
+        }
+        .map_err(|e| CommandError::CommandFailed(format!("Failed to make directory '{}': {e}", dir.display())))?;
+
+        if verbose {
+            info!("Created directory '{}'", dir.display());
+        }
     }
 
     Ok(())
 }
 
+macro_rules! remove_interactive_common {
+    ($interactive:expr, $path:expr, $verbose:expr) => {
+        if $interactive {
+            print!("Remove '{}'? [y/N]: ", $path.display());
+            io::stdout().flush().unwrap();
+    
+            let mut input = String::new();
+            io::stdin().read_line(&mut input).unwrap();
+    
+            let input = input.trim().to_lowercase();
+            if input != "y" && input != "yes" {
+                if $verbose {
+                    info!("Skipped '{}'", $path.display());
+                }
+                continue;
+            }
+        }
+    };
+}
+
 #[command(name = "rmdir", description = "Removes a given directory (if empty)")]
-pub fn cmd_rmdir(files: Vec<&Path>) -> Result<(), CommandError> {
-    for file in &files {
-        fs::remove_dir(file)
-            .map_err(|e| CommandError::CommandFailed(format!("Failed to remove directory '{}': {e}", file.display())))?
+pub fn cmd_rmdir(args: Vec<&str>) -> Result<(), CommandError> {
+    let mut parents = false;
+    let mut interactive = false;
+    let mut verbose = false;
+    let mut dirs = Vec::new();
+
+    for cmd in args {
+        match cmd {
+            parent_flag_patterns!() => {
+                parents = true;
+            }
+            "-i" | "--interactive" => {
+                interactive = true;
+            }
+            verbose_flag_patterns!() => {
+                verbose = true;
+            }
+            file => {
+                dirs.push(Path::new(file));
+            }
+        }
+    }
+
+    for dir in &dirs {
+        remove_interactive_common!(interactive, dir, verbose);
+        
+        fs::remove_dir(dir)
+            .map_err(|e| CommandError::CommandFailed(format!("Failed to remove directory '{}': {e}", dir.display())))?;
+    
+        if parents {
+            let mut parent_opt = dir.parent();
+            while let Some(parent) = parent_opt {
+                if !is_directory_empty(parent).unwrap_or(false) {
+                    break;
+                }
+
+                parent_opt = parent.parent();
+    
+                fs::remove_dir(parent)
+                    .map_err(|e| CommandError::CommandFailed(format!("Failed to remove directory '{}': {e}", dir.display())))?;
+            }
+        }
     }
 
     Ok(())
 }
 
 #[command(name = "rm", description = "Removes a given file or directory (with its contents)")]
-pub fn cmd_rm(files: Vec<&str>) -> Result<(), CommandError> {
+pub fn cmd_rm(args: Vec<&str>) -> Result<(), CommandError> {
     let mut recursively = false;
     let mut interactive = false;
     let mut verbose = false;
     let mut paths = Vec::new();
 
-    for file in files {
-        match file {
+    for cmd in args {
+        match cmd {
             "-r" | "-R" | "--recursive" => {
                 recursively = true;
             }
@@ -112,11 +213,11 @@ pub fn cmd_rm(files: Vec<&str>) -> Result<(), CommandError> {
             "-d" | "--dir" => {
                 recursively = false;
             }
-            "-v" | "--verbose" => {
+            verbose_flag_patterns!() => {
                 verbose = true;
             }
-            _ => {
-                paths.push(Path::new(file));
+            path => {
+                paths.push(Path::new(path));
             }
         }
     }
@@ -129,21 +230,7 @@ pub fn cmd_rm(files: Vec<&str>) -> Result<(), CommandError> {
             )));
         }
         
-        if interactive {
-            print!("Remove '{}'? [y/N]: ", path.display());
-            io::stdout().flush().unwrap();
-
-            let mut input = String::new();
-            io::stdin().read_line(&mut input).unwrap();
-
-            let input = input.trim().to_lowercase();
-            if input != "y" && input != "yes" {
-                if verbose {
-                    info!("Skipped '{}'", path.display());
-                }
-                continue;
-            }
-        }
+        remove_interactive_common!(interactive, path, verbose);
 
         if path.is_dir() {
             if recursively {

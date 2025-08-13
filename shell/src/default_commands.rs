@@ -1,6 +1,6 @@
 use chrono::{DateTime, Local};
 
-use command_core::{COMMANDS, CommandError, CommandRegistry};
+use command_core::{CommandError, CommandRegistry, COMMANDS};
 use command_macro::command;
 
 use colored::*;

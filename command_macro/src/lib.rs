@@ -3,8 +3,7 @@ use proc_macro::TokenStream;
 use proc_macro2::{Ident, Span, TokenStream as TokenStream2};
 use quote::{format_ident, quote};
 use syn::{
-    parse::{Parse, ParseStream},
-    parse_macro_input, Expr, ExprArray, GenericArgument, ItemFn, Lit, PathArguments, Token, Type,
+    parse::{Parse, ParseStream}, parse_macro_input, Data, DeriveInput, Expr, ExprArray, GenericArgument, ItemFn, Lit, PathArguments, Token, Type
 };
 
 // -------------------------------------------------------
@@ -146,7 +145,7 @@ fn generate_parse_code(fn_args: &[(Ident, &Type)]) -> Vec<TokenStream2> {
 }
 
 // -------------------------------------------------------
-// Macro Entry Point
+// Macro Entry Points
 // -------------------------------------------------------
 
 #[proc_macro_attribute]
@@ -155,6 +154,7 @@ pub fn command(args: TokenStream, input: TokenStream) -> TokenStream {
     let func = parse_macro_input!(input as ItemFn);
     let fn_name = &func.sig.ident;
 
+    // Validate macro arguments
     let name = match parsed_args.name {
         Some(n) => n,
         None => return syn::Error::new(Span::call_site(), "Missing `name` in #[command]").to_compile_error().into(),
@@ -229,4 +229,39 @@ pub fn command(args: TokenStream, input: TokenStream) -> TokenStream {
     };
 
     output.into()
+}
+
+#[proc_macro_derive(ParseArgument)]
+pub fn derive_parse_argument(input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as DeriveInput);
+    let name = &input.ident;
+
+    let Data::Enum(data_enum) = &input.data else {
+        return syn::Error::new_spanned(name, "ParseArgument can only be derived for enums")
+            .to_compile_error()
+            .into();
+    };
+
+    let variants = data_enum.variants.iter().map(|v| {
+        let ident = &v.ident;
+        let var_str = ident.to_string();
+        quote! {
+            #var_str => Ok(Self::#ident),
+        }
+    });
+
+    let expanded = quote! {
+        impl<'a> command_core::ParseArgument<'a> for #name {
+            fn parse(s: &'a str) -> Result<Self, command_core::CommandError> {
+                match s {
+                    #( #variants )*
+                    _ => Err(command_core::CommandError::CommandFailed(
+                        format!("Invalid {} variant: '{}'", stringify!(#name), s)
+                    ))
+                }
+            }
+        }
+    };
+
+    expanded.into()
 }

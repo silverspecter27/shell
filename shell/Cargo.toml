@@ -12,6 +12,7 @@ thiserror = "2.0.12"
 whoami = "1.6.0"
 colored = "3"
 enable-ansi-support = "0.2"
+windows = "0.61.3"
 log = { version = "0.4.27", features = ["std", "serde"] }
 env_logger = "0.11.8"
 chrono = "0.4"
