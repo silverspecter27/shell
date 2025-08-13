@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use chrono::Local;
 use command_core::{CommandError, CommandInfo, CommandRegistry, COMMANDS};
 
@@ -93,8 +95,8 @@ fn main() {
             let colored_line = match record.level() {
                 Level::Error => log_line.red().bold(),
                 Level::Warn => log_line.yellow().bold(),
-                Level::Info => log_line.green(),
-                Level::Debug => log_line.blue(),
+                Level::Info => log_line.blue(),
+                Level::Debug => log_line.green(),
                 Level::Trace => log_line.normal(),
             };
 
@@ -117,13 +119,12 @@ fn main() {
         if let Some(cmd) = parts.next() {
             let args: Vec<&str> = parts.collect();
 
-            CommandRegistry::execute_command(cmd, &args)
+            _ = CommandRegistry::execute_command(cmd, &args)
                 .or_else(|e| match e {
                     CommandError::CommandNotFound(_) => call_executable(cmd, &args),
                     other => Err(other),
                 })
-                .map_err(|e| error!("{}", e))
-                .ok();
+                .map_err(|e| error!("{}", e));
         }
     }
 }

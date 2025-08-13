@@ -2,66 +2,112 @@ use proc_macro::TokenStream;
 use proc_macro2::{Ident, Span};
 use quote::quote;
 use syn::{
-    parse_macro_input, AttributeArgs, ItemFn, Lit, Meta, NestedMeta,
+    parse::{Parse, ParseStream},
+    parse_macro_input, Expr, ExprArray, ItemFn, Lit, Token,
 };
+
+struct CommandArgs {
+    name: Option<String>,
+    description: Option<String>,
+    aliases: Vec<String>,
+    min: Option<usize>,
+    max: Option<usize>,
+}
+
+impl Parse for CommandArgs {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        let mut name = None;
+        let mut description = None;
+        let mut aliases = Vec::new();
+        let mut min = None;
+        let mut max = None;
+
+        while !input.is_empty() {
+            let ident: Ident = input.parse()?;
+            input.parse::<Token![=]>()?;
+
+            if ident == "name" {
+                let lit: Lit = input.parse()?;
+                if let Lit::Str(s) = lit {
+                    name = Some(s.value());
+                } else {
+                    return Err(syn::Error::new_spanned(lit, "name must be a string literal"));
+                }
+            } else if ident == "description" {
+                let lit: Lit = input.parse()?;
+                if let Lit::Str(s) = lit {
+                    description = Some(s.value());
+                } else {
+                    return Err(syn::Error::new_spanned(lit, "description must be a string literal"));
+                }
+            } else if ident == "aliases" {
+                let expr: Expr = input.parse()?;
+                if let Expr::Array(ExprArray { elems, .. }) = expr {
+                    for elem in elems {
+                        if let Expr::Lit(syn::ExprLit {
+                            lit: Lit::Str(s),
+                            ..
+                        }) = elem
+                        {
+                            aliases.push(s.value());
+                        } else {
+                            return Err(syn::Error::new_spanned(elem, "aliases must be string literals"));
+                        }
+                    }
+                } else {
+                    return Err(syn::Error::new_spanned(expr, "aliases must be an array literal"));
+                }
+            } else if ident == "min" {
+                let lit: Lit = input.parse()?;
+                if let Lit::Int(i) = lit {
+                    min = Some(i.base10_parse()?);
+                } else {
+                    return Err(syn::Error::new_spanned(lit, "min must be an integer literal"));
+                }
+            } else if ident == "max" {
+                let lit: Lit = input.parse()?;
+                if let Lit::Int(i) = lit {
+                    max = Some(i.base10_parse()?);
+                } else {
+                    return Err(syn::Error::new_spanned(lit, "max must be an integer literal"));
+                }
+            } else {
+                return Err(syn::Error::new_spanned(ident, "unknown argument"));
+            }
+
+            // Consume trailing comma if present
+            if input.peek(Token![,]) {
+                input.parse::<Token![,]>()?;
+            }
+        }
+
+        Ok(Self {
+            name,
+            description,
+            aliases,
+            min,
+            max,
+        })
+    }
+}
 
 #[proc_macro_attribute]
 pub fn command(args: TokenStream, input: TokenStream) -> TokenStream {
-    let args = parse_macro_input!(args as AttributeArgs);
+    let parsed_args = parse_macro_input!(args as CommandArgs);
     let func = parse_macro_input!(input as ItemFn);
 
-    let mut name: Option<String> = None;
-    let mut aliases: Vec<String> = Vec::new();
-    let mut description: Option<String> = None;
-    let mut min: Option<usize> = None;
-    let mut max: Option<usize> = None;
-
-    for arg in args {
-        match arg {
-            NestedMeta::Meta(Meta::NameValue(nv)) => {
-                if nv.path.is_ident("name") {
-                    if let Lit::Str(s) = nv.lit {
-                        name = Some(s.value());
-                    }
-                } else if nv.path.is_ident("description") {
-                    if let Lit::Str(s) = nv.lit {
-                        description = Some(s.value());
-                    }
-                } else if nv.path.is_ident("min") {
-                    if let Lit::Int(i) = nv.lit {
-                        min = Some(i.base10_parse().unwrap_or(0));
-                    }
-                } else if nv.path.is_ident("max") {
-                    if let Lit::Int(i) = nv.lit {
-                        max = Some(i.base10_parse().unwrap_or(0));
-                    }
-                }
-            }
-            NestedMeta::Meta(Meta::List(ml)) if ml.path.is_ident("aliases") => {
-                for nested in ml.nested {
-                    if let NestedMeta::Lit(Lit::Str(lit_str)) = nested {
-                        aliases.push(lit_str.value());
-                    }
-                }
-            }
-            _ => {}
-        }
-    }
-
-    let name = name.expect("command must have a name");
-    let alias_literals = aliases
-        .iter()
-        .map(|s| quote! { #s })
-        .collect::<Vec<_>>();
-
-    let description = description.unwrap_or_default();
-    let min = min.unwrap_or_default();
-    let max = max.unwrap_or(usize::MAX);
-
     let fn_name = &func.sig.ident;
+
+    let name = parsed_args.name.expect("Missing `name` in #[command]");
+    let description = parsed_args.description.unwrap_or_default();
+    let aliases = parsed_args.aliases;
+    let min = parsed_args.min.unwrap_or_default();
+    let max = parsed_args.max.unwrap_or(usize::MAX);
+
+    let alias_literals = aliases.iter().map(|s| quote! { #s }).collect::<Vec<_>>();
     let static_name = Ident::new(&format!("REGISTERED_COMMAND_{}", fn_name), Span::call_site());
 
-    let expanded = quote! {
+    let output = quote! {
         #func
 
         #[linkme::distributed_slice(crate::COMMANDS)]
@@ -75,5 +121,5 @@ pub fn command(args: TokenStream, input: TokenStream) -> TokenStream {
         };
     };
 
-    TokenStream::from(expanded)
+    TokenStream::from(output)
 }

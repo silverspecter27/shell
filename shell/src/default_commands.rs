@@ -40,7 +40,7 @@ pub fn cmd_time(_: &[&str]) -> Result<(), CommandError> {
     Ok(())
 }
 
-#[command(name = "exit", description = "Exit the shell", aliases("quit", "bye"), max = 0)]
+#[command(name = "exit", description = "Exit the shell", aliases = ["quit", "bye"], max = 0)]
 pub fn cmd_exit(_: &[&str]) -> Result<(), CommandError> {
     std::process::exit(0);
 }
