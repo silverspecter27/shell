@@ -4,8 +4,8 @@ pub struct CommandInfo {
     pub name: &'static str,
     pub description: &'static str,
     pub aliases: &'static [&'static str],
-    pub max: usize,
     pub min: usize,
+    pub max: usize,
     pub handler: &'static dyn CommandHandler,
 }
 

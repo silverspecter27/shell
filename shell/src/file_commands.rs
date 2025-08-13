@@ -75,36 +75,34 @@ pub fn cmd_touch(files: Vec<String>) -> Result<(), CommandError> {
 }
 
 #[command(name = "mkdir", description = "Makes a new directory")]
-pub fn cmd_mkdir(files: Vec<String>) -> Result<(), CommandError> {
+pub fn cmd_mkdir(files: Vec<&Path>) -> Result<(), CommandError> {
     for file in &files {
         fs::create_dir(file)
-            .map_err(|e| CommandError::CommandFailed(format!("Failed to make directory '{}': {e}", file)))?
+            .map_err(|e| CommandError::CommandFailed(format!("Failed to make directory '{}': {e}", file.display())))?
     }
 
     Ok(())
 }
 
 #[command(name = "rmdir", description = "Removes a given directory (if empty)")]
-pub fn cmd_rmdir(files: Vec<String>) -> Result<(), CommandError> {
+pub fn cmd_rmdir(files: Vec<&Path>) -> Result<(), CommandError> {
     for file in &files {
         fs::remove_dir(file)
-            .map_err(|e| CommandError::CommandFailed(format!("Failed to remove directory '{}': {e}", file)))?
+            .map_err(|e| CommandError::CommandFailed(format!("Failed to remove directory '{}': {e}", file.display())))?
     }
 
     Ok(())
 }
 
 #[command(name = "rm", description = "Removes a given file or directory (with its contents)")]
-pub fn cmd_rm(files: Vec<String>) -> Result<(), CommandError> {
-    use std::path::Path;
-
+pub fn cmd_rm(files: Vec<&str>) -> Result<(), CommandError> {
     let mut recursively = false;
     let mut interactive = false;
     let mut verbose = false;
     let mut paths = Vec::new();
 
-    for file in &files {
-        match file.as_str() {
+    for file in files {
+        match file {
             "-r" | "-R" | "--recursive" => {
                 recursively = true;
             }
@@ -118,13 +116,12 @@ pub fn cmd_rm(files: Vec<String>) -> Result<(), CommandError> {
                 verbose = true;
             }
             _ => {
-                paths.push(file);
+                paths.push(Path::new(file));
             }
         }
     }
 
-    for path_str in paths {
-        let path = Path::new(path_str);
+    for path in paths {
         if !path.exists() {
             return Err(CommandError::CommandFailed(format!(
                 "Path '{}' doesn't exist",
@@ -150,17 +147,17 @@ pub fn cmd_rm(files: Vec<String>) -> Result<(), CommandError> {
 
         if path.is_dir() {
             if recursively {
-                fs::remove_dir_all(path)
+                fs::remove_dir_all(&path)
             } else {
                 return Err(CommandError::CommandFailed(format!(
                     "Cannot remove directory '{}': is a directory (use -r)",
-                    path.to_string_lossy()
+                    path.display()
                 )));
             }
         } else {
-            fs::remove_file(path)
+            fs::remove_file(&path)
         }
-        .map_err(|e| CommandError::CommandFailed(format!("Failed to remove '{}': {e}", path.to_string_lossy())))?;
+        .map_err(|e| CommandError::CommandFailed(format!("Failed to remove '{}': {e}", path.display())))?;
 
         if verbose {
             info!("Removed '{}'", path.display());
@@ -261,15 +258,15 @@ pub fn cmd_cat(args: Vec<&str>) -> Result<(), CommandError> {
 
 #[command(name = "ls", description = "Displays files and folders from the passed directory or current if none passed")]
 pub fn cmd_ls(path: Option<PathBuf>) -> Result<(), CommandError> {
-    let path_buf = if let Some(path) =  path {
+    let target = if let Some(path) =  path {
         path
     } else {
         env::current_dir()
             .map_err(|e| CommandError::CannotAccessCurrentDirectory(e))?
     };
 
-    let mut entries: Vec<_> = fs::read_dir(&path_buf)
-        .map_err(|e| CommandError::DirectoryReadError(path_buf, e))?
+    let mut entries: Vec<_> = fs::read_dir(&target)
+        .map_err(|e| CommandError::DirectoryReadError(target, e))?
         .collect::<Result<_, _>>()?;
 
     entries.sort_by_key(|e| e.path());
@@ -304,9 +301,8 @@ pub fn cmd_ls(path: Option<PathBuf>) -> Result<(), CommandError> {
 }
 
 #[command(name = "du", description = "Print the size of the file passed")]
-pub fn cmd_du(files: Vec<PathBuf>) -> Result<(), CommandError> {
-    for file in &files {
-        let path = Path::new(file);
+pub fn cmd_du(paths: Vec<&Path>) -> Result<(), CommandError> {
+    for path in &paths {
         fs::metadata(path)
             .map(|metadata| {
                 println!("Sizeof '{}' is: {}", path.display(), format_size(metadata.file_size(), DECIMAL));

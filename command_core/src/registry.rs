@@ -20,16 +20,7 @@ impl CommandRegistry {
 
     pub fn execute_command(name: &str, args: &[&str]) -> Result<(), CommandError> {
         match CommandRegistry::find(name) {
-            Some(info) => {
-                if args.len() < info.min {
-                    return Err(CommandError::TooFewArguments(args.len(), info));
-                }
-                if args.len() > info.max && info.max != usize::MAX {
-                    return Err(CommandError::TooManyArguments(args.len(), info));
-                }
-
-                info.handler.call(&args)
-            }
+            Some(info) => info.handler.call(&args),
             None => Err(CommandError::CommandNotFound(name.to_string()))
         }
     }
