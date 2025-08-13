@@ -1,15 +1,12 @@
-use crate::command_error::CommandError;
+use crate::command_handler::CommandHandler;
 
-pub type CommandFn = fn(&[&str]) -> Result<(), CommandError>;
-
-#[derive(Debug, PartialEq, Eq)]
 pub struct CommandInfo {
     pub name: &'static str,
     pub description: &'static str,
     pub aliases: &'static [&'static str],
     pub max: usize,
     pub min: usize,
-    pub handler: CommandFn,
+    pub handler: &'static dyn CommandHandler,
 }
 
 impl CommandInfo {
@@ -19,7 +16,7 @@ impl CommandInfo {
         aliases: &'static [&'static str],
         min: usize,
         max: usize,
-        handler: CommandFn,
+        handler: &'static dyn CommandHandler,
     ) -> Self {
         Self {
             name,

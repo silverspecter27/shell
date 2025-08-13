@@ -9,25 +9,21 @@ use crate::{get_current_user, println_current_dir};
 use colored::*;
 use humansize::{format_size, DECIMAL};
 
-#[command(name = "cd", description = "Print the current directory, or change it", max = 1)]
-pub fn cmd_cd(args: &[&str]) -> Result<(), CommandError> {
-    match args {
-        [] => {
-            println_current_dir!();
-            Ok(())
-        }
-        [path] => {
-            let curr_dir = env::current_dir()
-                .map_err(|e| CommandError::CommandFailed(format!("Failed to get current directory: {e}")))?;
-
-            let mut new_dir = PathBuf::from(curr_dir);
-            new_dir.push(path);
-
-            env::set_current_dir(&new_dir)
-                .map(|_| println_current_dir!())
-                .map_err(|e| CommandError::CommandFailed(format!("Error changing directory: {}", e)))
-        }
-        _ => unreachable!(),
+#[command(name = "cd", description = "Print the current directory, or change it")]
+pub fn cmd_cd(path: Option<PathBuf>) -> Result<(), CommandError> {
+    if let Some(path) = path {
+        let curr_dir = env::current_dir()
+            .map_err(|e| CommandError::CommandFailed(format!("Failed to get current directory: {e}")))?;
+    
+        let mut new_dir = PathBuf::from(curr_dir);
+        new_dir.push(path);
+    
+        env::set_current_dir(&new_dir)
+            .map(|_| println_current_dir!())
+            .map_err(|e| CommandError::CommandFailed(format!("Error changing directory: {}", e)))
+    } else {
+        println_current_dir!();
+        Ok(())
     }
 }
 
@@ -35,13 +31,8 @@ lazy_static::lazy_static! {
     static ref DIR_STACK: Mutex<Vec<PathBuf>> = Mutex::new(Vec::new());
 }
 
-#[command(name = "pushd", description = "Save current directory and change to new one", min = 1, max = 1)]
-pub fn cmd_pushd(args: &[&str]) -> Result<(), CommandError> {
-    let target = match args {
-        [dir] => dir,
-        _ => unreachable!(),
-    };
-
+#[command(name = "pushd", description = "Save current directory and change to new one")]
+pub fn cmd_pushd(target: PathBuf) -> Result<(), CommandError> {
     let curr_dir = env::current_dir()
         .map_err(|e| CommandError::CommandFailed(format!("Failed to get current directory: {e}")))?;
 
@@ -59,8 +50,8 @@ pub fn cmd_pushd(args: &[&str]) -> Result<(), CommandError> {
     Ok(())
 }
 
-#[command(name = "popd", description = "Pop directory from stack and change to it", max = 0)]
-pub fn cmd_popd(_: &[&str]) -> Result<(), CommandError> {
+#[command(name = "popd", description = "Pop directory from stack and change to it")]
+pub fn cmd_popd() -> Result<(), CommandError> {
     let mut stack = DIR_STACK.lock().unwrap();
     let dir = stack.pop()
         .ok_or_else(|| CommandError::CommandFailed("Directory stack is empty".to_string()))?;
@@ -70,41 +61,41 @@ pub fn cmd_popd(_: &[&str]) -> Result<(), CommandError> {
         .map_err(|e| CommandError::CommandFailed(format!("Error changing directory: {}", e)))
 }
 
-#[command(name = "touch", description = "Makes a new empty file", min = 1)]
-pub fn cmd_touch(args: &[&str]) -> Result<(), CommandError> {
+#[command(name = "touch", description = "Makes a new empty file")]
+pub fn cmd_touch(files: Vec<String>) -> Result<(), CommandError> {
     use fs::File;
 
-    for arg in args {
-        File::create(arg)
+    for file in &files {
+        File::create(file)
             .map(|_| ())
-            .map_err(|e| CommandError::CommandFailed(format!("Could not create file '{}': {e}", arg)))?;
+            .map_err(|e| CommandError::CommandFailed(format!("Could not create file '{}': {e}", file)))?;
     }
 
     Ok(())
 }
 
-#[command(name = "mkdir", description = "Makes a new directory", min = 1)]
-pub fn cmd_mkdir(args: &[&str]) -> Result<(), CommandError> {
-    for arg in args {
-        fs::create_dir(arg)
-            .map_err(|e| CommandError::CommandFailed(format!("Failed to make directory '{}': {e}", arg)))?
+#[command(name = "mkdir", description = "Makes a new directory")]
+pub fn cmd_mkdir(files: Vec<String>) -> Result<(), CommandError> {
+    for file in &files {
+        fs::create_dir(file)
+            .map_err(|e| CommandError::CommandFailed(format!("Failed to make directory '{}': {e}", file)))?
     }
 
     Ok(())
 }
 
-#[command(name = "rmdir", description = "Removes a given directory (if empty)", min = 1)]
-pub fn cmd_rmdir(args: &[&str]) -> Result<(), CommandError> {
-    for arg in args {
-        fs::remove_dir(arg)
-            .map_err(|e| CommandError::CommandFailed(format!("Failed to remove directory '{}': {e}", arg)))?
+#[command(name = "rmdir", description = "Removes a given directory (if empty)")]
+pub fn cmd_rmdir(files: Vec<String>) -> Result<(), CommandError> {
+    for file in &files {
+        fs::remove_dir(file)
+            .map_err(|e| CommandError::CommandFailed(format!("Failed to remove directory '{}': {e}", file)))?
     }
 
     Ok(())
 }
 
-#[command(name = "rm", description = "Removes a given file or directory (with its contents)", min = 1)]
-pub fn cmd_rm(args: &[&str]) -> Result<(), CommandError> {
+#[command(name = "rm", description = "Removes a given file or directory (with its contents)")]
+pub fn cmd_rm(files: Vec<String>) -> Result<(), CommandError> {
     use std::path::Path;
 
     let mut recursively = false;
@@ -112,8 +103,8 @@ pub fn cmd_rm(args: &[&str]) -> Result<(), CommandError> {
     let mut verbose = false;
     let mut paths = Vec::new();
 
-    for &arg in args {
-        match arg {
+    for file in &files {
+        match file.as_str() {
             "-r" | "-R" | "--recursive" => {
                 recursively = true;
             }
@@ -127,7 +118,7 @@ pub fn cmd_rm(args: &[&str]) -> Result<(), CommandError> {
                 verbose = true;
             }
             _ => {
-                paths.push(arg);
+                paths.push(file);
             }
         }
     }
@@ -180,7 +171,7 @@ pub fn cmd_rm(args: &[&str]) -> Result<(), CommandError> {
 }
 
 #[command(name = "cat", description = "Output given files, create if doesn't exist")]
-pub fn cmd_cat(args: &[&str]) -> Result<(), CommandError> {
+pub fn cmd_cat(args: Vec<&str>) -> Result<(), CommandError> {
     use std::fs::{File, OpenOptions};
     use std::io::{Read, Write};
     use std::path::Path;
@@ -268,17 +259,13 @@ pub fn cmd_cat(args: &[&str]) -> Result<(), CommandError> {
     Ok(())
 }
 
-#[command(name = "ls", description = "Displays files and folders from the current directory", max = 1)]
-pub fn cmd_ls(args: &[&str]) -> Result<(), CommandError> {
-    let path_buf = match args {
-        [] => {
-            env::current_dir()
-                .map_err(|e| CommandError::CannotAccessCurrentDirectory(e))?
-        }
-        [path] => {
-            PathBuf::from(path)
-        }
-        _ => unreachable!(),
+#[command(name = "ls", description = "Displays files and folders from the passed directory or current if none passed")]
+pub fn cmd_ls(path: Option<PathBuf>) -> Result<(), CommandError> {
+    let path_buf = if let Some(path) =  path {
+        path
+    } else {
+        env::current_dir()
+            .map_err(|e| CommandError::CannotAccessCurrentDirectory(e))?
     };
 
     let mut entries: Vec<_> = fs::read_dir(&path_buf)
@@ -316,10 +303,10 @@ pub fn cmd_ls(args: &[&str]) -> Result<(), CommandError> {
     Ok(())
 }
 
-#[command(name = "du", description = "Print the size of the file passed", min = 1)]
-pub fn cmd_du(args: &[&str]) -> Result<(), CommandError> {
-    for arg in args {
-        let path = Path::new(arg);
+#[command(name = "du", description = "Print the size of the file passed")]
+pub fn cmd_du(files: Vec<PathBuf>) -> Result<(), CommandError> {
+    for file in &files {
+        let path = Path::new(file);
         fs::metadata(path)
             .map(|metadata| {
                 println!("Sizeof '{}' is: {}", path.display(), format_size(metadata.file_size(), DECIMAL));

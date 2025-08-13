@@ -2,7 +2,6 @@ use std::{error::Error, io::Error as IoError, path::PathBuf};
 
 use crate::command_info::CommandInfo;
 
-#[derive(Debug)]
 pub enum CommandError {
     TooFewArguments(usize, &'static CommandInfo),
     TooManyArguments(usize, &'static CommandInfo),

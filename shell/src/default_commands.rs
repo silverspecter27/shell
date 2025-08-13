@@ -7,8 +7,8 @@ use colored::*;
 
 use crate::{get_current_user, println_current_user};
 
-#[command(name = "pwd", description = "Print the current directory", max = 0)]
-pub fn cmd_pwd(_: &[&str]) -> Result<(), CommandError> {
+#[command(name = "pwd", description = "Print the current directory")]
+pub fn cmd_pwd() -> Result<(), CommandError> {
     match std::env::current_dir() {
         Ok(path) => {
             println!("{}", path.to_str().unwrap_or_default().green());
@@ -18,75 +18,60 @@ pub fn cmd_pwd(_: &[&str]) -> Result<(), CommandError> {
     }
 }
 
-#[command(name = "whoami", description = "Print the current user", max = 0)]
-pub fn cmd_whoami(_: &[&str]) -> Result<(), CommandError> {
+#[command(name = "whoami", description = "Print the current user")]
+pub fn cmd_whoami() -> Result<(), CommandError> {
     println_current_user!();
     Ok(())
 }
 
-#[command(name = "cls", description = "Clears the screen", max = 0)]
-pub fn cmd_cls(_: &[&str]) -> Result<(), CommandError> {
+#[command(name = "cls", description = "Clears the screen")]
+pub fn cmd_cls() -> Result<(), CommandError> {
     clearscreen::clear()
         .expect("failed to clear screen.");
 
     Ok(())
 }
 
-#[command(name = "time", description = "Shows the current time", max = 0)]
-pub fn cmd_time(_: &[&str]) -> Result<(), CommandError> {
+#[command(name = "time", description = "Shows the current time")]
+pub fn cmd_time() -> Result<(), CommandError> {
     let now: DateTime<Local> = Local::now();
     println!("Time is {}", now.format("%H : %M : %S").to_string());
 
     Ok(())
 }
 
-#[command(name = "exit", description = "Exit the shell", aliases = ["quit", "bye"], max = 0)]
-pub fn cmd_exit(_: &[&str]) -> Result<(), CommandError> {
+#[command(name = "exit", description = "Exit the shell", aliases = ["quit", "bye"])]
+pub fn cmd_exit() -> Result<(), CommandError> {
     std::process::exit(0);
 }
 
-#[command(name = "help", description = "Displays help information", max = 1)]
-pub fn cmd_help(args: &[&str]) -> Result<(), CommandError> {
-    match args {
-        [] => {
-            println!();
-            for info_fn in COMMANDS {
-                let info = info_fn();
-                if info.description.is_empty() {
-                    println!("{}", info.name);
-                } else {
-                    println!("{}:\t{}", info.name, info.description);
+#[command(name = "help", description = "Displays help information")]
+pub fn cmd_help(command: Option<String>) -> Result<(), CommandError> {
+    if let Some(command) = command {
+        match CommandRegistry::find(command.as_str()) {
+            Some(info) => {
+                println!("name: {}", info.name);
+                if !info.description.is_empty() {
+                    println!("description: {}", info.description);
                 }
+                if !info.aliases.is_empty() {
+                    println!("aliases: {}", info.aliases.join(", "));
+                }
+                Ok(())
             }
-            println!();
-
-            Ok(())
+            None => Err(CommandError::CommandNotFound(command.to_string()))
         }
-        [cmd] => {
-            match CommandRegistry::find(cmd) {
-                Some(info) => {
-                    println!("name: {}", info.name);
-                    if !info.description.is_empty() {
-                        println!("description: {}", info.description);
-                    }
-                    if !info.aliases.is_empty() {
-                        println!("aliases: {}", info.aliases.join(", "));
-                    }
-                    Ok(())
-                }
-                None => Err(CommandError::CommandNotFound(cmd.to_string()))
+    } else {
+        println!();
+        for info in COMMANDS {
+            if info.description.is_empty() {
+                println!("{}", info.name);
+            } else {
+                println!("{}:\t{}", info.name, info.description);
             }
         }
-        _ => unreachable!()
-    }
-}
+        println!();
 
-#[command(name = "sys", description = "Run a given program", min = 1)]
-pub fn cmd_sys(args: &[&str]) -> Result<(), CommandError> {
-    match args {
-        [] => unreachable!(),
-        [program, rest@..] => {
-            crate::call_executable(program, rest)
-        }
+        Ok(())
     }
 }

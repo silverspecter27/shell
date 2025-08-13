@@ -11,3 +11,4 @@ quote = "1"
 syn = { version = "1.0", features = ["full", "extra-traits"] }
 linkme = "0.3"
 proc-macro2 = "1"
+convert_case = "0.8.0"
