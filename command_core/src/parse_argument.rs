@@ -52,8 +52,46 @@ macro_rules! impl_parse_number {
 impl_parse_number!(i8, i16, i32, i64, i128, isize, u8, u16, u32, u64, u128, usize);
 impl_parse_number!(f32, f64);
 
+impl<'a, T: ParseArgument<'a>> ParseArgument<'a> for Option<T> {
+    fn parse(s: &'a str) -> Result<Self, CommandError> {
+        Ok(Some(T::parse(s)?))
+    }
+}
+
+impl<'a, T: ParseArgument<'a>> ParseArgument<'a> for Vec<T> {
+    fn parse(s: &'a str) -> Result<Self, CommandError> {
+        // Example: split by commas
+        s.split(',').map(T::parse).collect()
+    }
+}
+
+impl<'a> ParseArgument<'a> for std::time::Duration {
+    fn parse(s: &str) -> Result<Self, CommandError> {
+        let secs: u64 = s.parse().map_err(|_| CommandError::CommandFailed(format!("Invalid duration: '{}'", s)))?;
+        Ok(std::time::Duration::from_secs(secs))
+    }
+}
+
 impl<'a> ParseArgument<'a> for std::path::PathBuf {
     fn parse(s: &str) -> Result<Self, CommandError> {
         Ok(std::path::PathBuf::from(s))
+    }
+}
+
+impl<'a> ParseArgument<'a> for &'a std::path::Path {
+    fn parse(s: &'a str) -> Result<Self, CommandError> {
+        Ok(std::path::Path::new(s))
+    }
+}
+
+impl<'a> ParseArgument<'a> for std::net::IpAddr {
+    fn parse(s: &str) -> Result<Self, CommandError> {
+        s.parse().map_err(|_| CommandError::CommandFailed(format!("Invalid IP address: '{}'", s)))
+    }
+}
+
+impl<'a> ParseArgument<'a> for std::net::SocketAddr {
+    fn parse(s: &str) -> Result<Self, CommandError> {
+        s.parse().map_err(|_| CommandError::CommandFailed(format!("Invalid SocketAddr: '{}'", s)))
     }
 }
